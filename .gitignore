@@ -1,0 +1,32 @@
+# Virtual Environments
+env/
+.venv/
+venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Audio / Temp Files
+*.wav
+*.mp3
+*.m4a
+*.webm
+*.tmp
+
+# Output & Exports
+*.docx
+*.txt
+!requirements.txt
+*.md
+!README.md
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
