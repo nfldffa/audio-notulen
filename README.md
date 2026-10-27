@@ -33,7 +33,7 @@ Aplikasi web berbasis **Gradio** untuk transkripsi audio rapat berbahasa Indones
 Buka terminal (Git Bash, Command Prompt, atau PowerShell), lalu jalankan:
 
 ```bash
-git clone https://github.com/<username>/<nama-repo>.git
+git clone https://github.com/nfldffa/audio-notulen.git
 cd "Audio Notulen"
 ```
 
