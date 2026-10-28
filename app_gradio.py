@@ -14,7 +14,7 @@ import torch
 import requests
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-# KONFIGURASI Latar Belakang (Tidak ditampilkan ke UI)
+# KONFIGURASI Latar Belakang
 WHISPER_MODEL_ID = "openai/whisper-large-v3-turbo"
 DEFAULT_OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_URL = "http://127.0.0.1:11434"
@@ -250,25 +250,89 @@ def export_docx(markdown_text: str, title: str) -> bytes:
     normal.font.name = "Aptos"
     normal.font.size = Pt(10)
 
-    for raw in markdown_text.splitlines():
-        line = raw.rstrip()
-        if not line.strip():
+    # Fungsi internal untuk membaca sintaks **bold**
+    def add_formatted_text(paragraph, text: str):
+        parts = text.split("**")
+        for i, part in enumerate(parts):
+            if not part: continue
+            run = paragraph.add_run(part.replace("`", ""))
+            # Index ganjil adalah teks yang berada di dalam **...**
+            if i % 2 != 0:
+                run.bold = True
+
+    in_table = False
+    table_data = []
+
+    def build_word_table():
+        if not table_data: return
+        cols = max((len(r) for r in table_data), default=0)
+        if cols == 0: return
+        table = doc.add_table(rows=len(table_data), cols=cols)
+        table.style = 'Table Grid'
+        for r_idx, row in enumerate(table_data):
+            cells = table.rows[r_idx].cells
+            for c_idx, cell_text in enumerate(row):
+                if c_idx < len(cells):
+                    p = cells[c_idx].paragraphs[0]
+                    add_formatted_text(p, cell_text) # Terapkan format bold di dalam tabel
+                    if r_idx == 0:
+                        for run in p.runs:
+                            run.bold = True # Header tabel otomatis tebal
+        table_data.clear()
+
+    lines = markdown_text.splitlines()
+    for raw in lines:
+        line = raw.strip()
+        
+        # Penanganan baris kosong
+        if not line:
+            if in_table:
+                build_word_table()
+                in_table = False
             continue
+
+        # Penanganan Tabel
+        if line.startswith("|") or (in_table and "|" in line):
+            in_table = True
+            # Abaikan garis pemisah tabel markdown (misal: |---|---|)
+            if re.match(r"^[\|\-\s:]+$", line):
+                continue
+            # Pisahkan sel dan buang bagian tepi yang kosong
+            cells = [c.strip() for c in line.split("|")]
+            if cells and not cells[0]: cells = cells[1:]
+            if cells and not cells[-1]: cells = cells[:-1]
+            if cells:
+                table_data.append(cells)
+            continue
+        else:
+            if in_table:
+                build_word_table()
+                in_table = False
+
+        # Penanganan Teks, Heading, dan List
         if line.startswith("# "):
-            p = doc.add_heading(line[2:].strip(), level=0)
+            p = doc.add_heading(level=0)
+            add_formatted_text(p, line[2:].strip())
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         elif line.startswith("## "):
-            doc.add_heading(line[3:].strip(), level=1)
+            p = doc.add_heading(level=1)
+            add_formatted_text(p, line[3:].strip())
         elif line.startswith("### "):
-            doc.add_heading(line[4:].strip(), level=2)
-        elif re.match(r"^\s*[-*]\s+", line):
-            doc.add_paragraph(re.sub(r"^\s*[-*]\s+", "", line), style="List Bullet")
-        elif re.match(r"^\s*\d+[.)]\s+", line):
-            doc.add_paragraph(re.sub(r"^\s*\d+[.)]\s+", "", line), style="List Number")
-        elif line.startswith("|"):
-            doc.add_paragraph(line.replace("|", "  |  "))
+            p = doc.add_heading(level=2)
+            add_formatted_text(p, line[4:].strip())
+        elif re.match(r"^[-*]\s+", line):
+            p = doc.add_paragraph(style="List Bullet")
+            add_formatted_text(p, re.sub(r"^[-*]\s+", "", line))
+        elif re.match(r"^\d+[.)]\s+", line):
+            p = doc.add_paragraph(style="List Number")
+            add_formatted_text(p, re.sub(r"^\d+[.)]\s+", "", line))
         else:
-            doc.add_paragraph(line.replace("**", "").replace("`", ""))
+            p = doc.add_paragraph()
+            add_formatted_text(p, line)
+
+    # Render sisa tabel jika berada di akhir file
+    if in_table:
+        build_word_table()
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -280,11 +344,19 @@ def export_word_file(notulen_text: str, meeting_title: str) -> str | None:
         raise gr.Error("Belum ada notulen untuk diekspor.")
     try:
         docx_bytes = export_docx(notulen_text, meeting_title)
-        path = tempfile.mktemp(suffix="_Notulen.docx")
+        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", meeting_title or "").strip("_")
+        if not safe_title:
+            safe_title = "Notulen_Rapat"
+            
+        path = tempfile.mktemp(suffix=".docx", prefix=f"{safe_title}_")
         Path(path).write_bytes(docx_bytes)
+        
+        # Tambahkan alert pop-up
+        gr.Info("Dokumen Word berhasil disiapkan! Silakan simpan berkas Anda.")
+        
         return path
     except ImportError:
-        raise gr.Error("python-docx belum terinstal. Jalankan: pip install python-docx")
+        raise gr.Error("python-docx belum terinstal.")
 
 # PIPELINE UTAMA
 def run_pipeline(
@@ -380,65 +452,134 @@ def run_pipeline(
                     pass
 
 # ANTARMUKA GRADIO
+
+# 1. Konfigurasi Tema Gradio
+modern_theme = gr.themes.Soft(
+    primary_hue="indigo",
+    secondary_hue="slate",
+    font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "ui-sans-serif", "system-ui", "sans-serif"],
+).set(
+    body_background_fill="*neutral_50",
+    block_background_fill="white",
+    block_border_width="1px",
+    block_border_color="*neutral_200",
+    button_primary_background_fill="*primary_600",
+    button_primary_background_fill_hover="*primary_700",
+)
+
+# 2. Injeksi CSS Kustom (Lebar Dimaksimalkan & Layout Grid)
 custom_css = """
-.gradio-container { max-width: 900px !important; margin: auto !important; }
-#status-text { font-size: 0.95rem; font-weight: 500; color: #333; }
+.gradio-container { max-width: 1450px !important; width: 95% !important; margin: auto !important; padding-top: 2rem !important; position: relative; }
+.header-wrapper { text-align: center; margin-bottom: 1.5rem; }
+.header-title { font-size: 2.2rem !important; font-weight: 700; margin-bottom: 0.5rem; }
+.header-subtitle { font-size: 1.1rem; font-weight: 400; opacity: 0.8; }
+
+/* Tombol Toggle Tema (Pojok Kanan Atas) */
+.theme-toggle-btn { position: absolute !important; top: 15px !important; right: 15px !important; width: auto !important; background: var(--block-background-fill) !important; border: 1px solid var(--border-color-primary) !important; z-index: 1000; box-shadow: var(--block-shadow-sm) !important; }
+
+/* Layout Kartu Modern */
+.modern-card { border: 1px solid var(--border-color-primary) !important; border-radius: 12px !important; padding: 1.2rem !important; background: var(--block-background-fill); margin-bottom: 1rem; box-shadow: var(--block-shadow); }
+
+/* Status Bar */
+#status-card { background-color: var(--block-background-fill); border: 1px solid var(--border-color-primary); border-radius: 12px; padding: 1rem; text-align: center; margin-bottom: 1rem; box-shadow: var(--block-shadow); }
+#status-text { font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--color-accent); }
+
+/* Tombol Utama */
+.primary-btn { margin-top: 0 !important; border-radius: 10px !important; font-weight: bold !important; font-size: 1.1rem !important; letter-spacing: 0.3px; }
 """
 
-with gr.Blocks(title="Notulen Rapat Otomatis") as demo:
-    gr.Markdown(
-        """
-        # Sistem Notulen Rapat Otomatis
-        Unggah berkas audio atau video untuk ditranskripsikan dan diubah menjadi notulen rapat secara otomatis.
-        """
-    )
+# JS Paksa Light Mode Saat Halaman Dimuat
+force_light_js = """
+function() {
+    document.body.classList.remove('dark');
+}
+"""
 
-    with gr.Row():
-        with gr.Column(scale=1):
-            media_input = gr.File(
-                label="Unggah Audio / Video",
-                file_types=["audio", "video"],
-                type="filepath"
-            )
+# 3. Struktur Layout Block
+with gr.Blocks(title="Notulen Rapat Otomatis", theme=modern_theme, css=custom_css, js=force_light_js) as demo:
+    
+    # Tombol Ganti Tema
+    theme_toggle = gr.Button("🌓 Terang / Gelap", size="sm", elem_classes="theme-toggle-btn")
+    theme_toggle.click(None, None, None, js="() => { document.body.classList.toggle('dark'); }")
+    
+    # Bagian Header
+    with gr.Column(elem_classes="header-wrapper"):
+        gr.Markdown("<h1 class='header-title'>Sistem Notulen Otomatis</h1>")
+        gr.Markdown("<p class='header-subtitle'>Transkripsi audio & video menjadi dokumen notulen.</p>")
 
-            meeting_title = gr.Textbox(label="Judul Rapat", placeholder="Contoh: Rapat Mingguan Proyek")
-            meeting_date = gr.Textbox(label="Tanggal", placeholder="Contoh: 27 Oktober 2026")
-            extra_context = gr.Textbox(
-                label="Konteks Tambahan",
-                placeholder="Nama peserta, topik bahasan, atau istilah spesifik...",
-                lines=2,
-            )
+    with gr.Row(equal_height=False):
+        
+        # KOLOM KIRI: Input & Pengaturan (Lebih Lebar dan Padat)
+        with gr.Column(scale=5):
             
-            with_timestamps = gr.Checkbox(label="Sertakan penanda waktu (timestamp) di transkrip", value=True)
-
-            btn_process = gr.Button("Buat Notulen", variant="primary")
-
-        with gr.Column(scale=2):
-            status_out = gr.Markdown("Sistem siap. Silakan unggah berkas.", elem_id="status-text")
-
-            with gr.Tabs():
-                with gr.TabItem("Notulen Rapat"):
-                    notulen_out = gr.Markdown("*Hasil notulen akan ditampilkan di sini.*")
-
-                with gr.TabItem("Transkrip Lengkap"):
-                    transcript_out = gr.Textbox(
-                        label="Teks Transkripsi",
-                        lines=15,
-                        max_lines=25,
-                        interactive=False,
-                        placeholder="Transkripsi media akan ditampilkan di sini.",
+            # Kartu 1: Unggah Media
+            with gr.Column(elem_classes="modern-card"):
+                media_input = gr.File(
+                    label="Unggah Rekaman (Audio / Video)",
+                    file_types=["audio", "video"],
+                    type="filepath",
+                )
+            
+            # Kartu 2: Formulir Informasi (Dimampatkan menjadi 2 baris saja)
+            with gr.Column(elem_classes="modern-card"):
+                gr.Markdown("### 📝 Informasi Rapat")
+                
+                # Baris pertama formulir
+                with gr.Row():
+                    meeting_title = gr.Textbox(label="Judul Rapat", placeholder="Contoh: Evaluasi Q3", scale=1)
+                    meeting_date = gr.Textbox(label="Tanggal", placeholder="Contoh: 28 Okt 2026", scale=1)
+                
+                # Baris kedua formulir (Konteks & Checkbox kini bersebelahan)
+                with gr.Row():
+                    extra_context = gr.Textbox(
+                        label="Konteks Tambahan",
+                        placeholder="Nama peserta, istilah teknis...",
+                        lines=1,
+                        scale=3
                     )
+                    with_timestamps = gr.Checkbox(label="Sertakan Timestamp", value=True, scale=2)
 
-            with gr.Row():
-                btn_export_word = gr.Button("Unduh Word (.docx)", size="sm")
-                file_word = gr.File(label="Berkas Word", interactive=False)
-            with gr.Row():
-                file_notulen = gr.File(label="Berkas Notulen (.md)", interactive=False)
-                file_transkripsi = gr.File(label="Berkas Transkrip (.txt)", interactive=False)
+            btn_process = gr.Button("Buat Notulen", variant="primary", size="lg", elem_classes="primary-btn")
+
+        # KOLOM KANAN: Hasil & Output
+        with gr.Column(scale=7):
+            
+            with gr.Column(elem_id="status-card"):
+                status_out = gr.Markdown("Silakan unggah berkas untuk memulai.", elem_id="status-text")
+
+            with gr.Column(elem_classes="modern-card"):
+                with gr.Tabs():
+                    with gr.TabItem("Notulen Rapat"):
+                        notulen_out = gr.Markdown("*Hasil notulen yang telah disusun AI akan ditampilkan di sini.*")
+
+                    with gr.TabItem("Transkrip Mentah"):
+                        transcript_out = gr.Textbox(
+                            label="Teks Transkripsi",
+                            lines=15,
+                            max_lines=20,
+                            interactive=False,
+                            show_label=False,
+                            placeholder="Transkripsi lengkap media akan ditampilkan di sini.",
+                        )
+
+            with gr.Column(elem_classes="modern-card"):
+                gr.Markdown("### 💾 Unduh Berkas")
+                with gr.Row():
+                    btn_export_word = gr.Button("1. Siapkan Word (.docx)", variant="secondary")
+                    file_word = gr.DownloadButton("2. Unduh Word (.docx)", variant="primary")
+                with gr.Row():
+                    file_notulen = gr.DownloadButton("Unduh Markdown (.md)")
+                    file_transkripsi = gr.DownloadButton("Unduh Transkrip (.txt)")
 
     notulen_state = gr.State("")
+    
+    # Alert Upload Berkas
+    def on_upload_success():
+        gr.Info("Berkas media berhasil diunggah! Sistem siap memproses.")
+    
+    media_input.upload(fn=on_upload_success, inputs=None, outputs=None)
 
-    # Event Handlers
+    # Proses Utama
     btn_process.click(
         fn=run_pipeline,
         inputs=[
@@ -455,6 +596,10 @@ with gr.Blocks(title="Notulen Rapat Otomatis") as demo:
             file_notulen,
             file_transkripsi,
         ],
+    ).then(
+        # Alert selesai diproses
+        fn=lambda: gr.Info("Notulen dan transkripsi berhasil diselesaikan!"), 
+        inputs=None, outputs=None
     )
 
     notulen_out.change(fn=lambda x: x, inputs=notulen_out, outputs=notulen_state)
@@ -471,6 +616,4 @@ if __name__ == "__main__":
         server_port=7860,
         inbrowser=True,
         show_error=True,
-        theme=gr.themes.Soft(),
-        css=custom_css
     )
