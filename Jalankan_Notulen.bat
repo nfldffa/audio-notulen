@@ -1,18 +1,15 @@
 @echo off
-setlocal
-cd /d "%~dp0"
+title Notulen Rapat Otomatis
+echo ==========================================
+echo Memulai Aplikasi Notulen Rapat Otomatis...
+echo ==========================================
+echo.
 
-set "PYTHON_EXE="
-if exist "env\Scripts\python.exe" set "PYTHON_EXE=env\Scripts\python.exe"
-if exist ".venv\Scripts\python.exe" set "PYTHON_EXE=.venv\Scripts\python.exe"
+REM Mengaktifkan virtual environment
+call env\Scripts\activate
 
-if "%PYTHON_EXE%"=="" (
-  echo [ERROR] Virtual environment belum ditemukan (env atau .venv).
-  echo Silakan ikuti langkah instalasi di README.md terlebih dahulu.
-  pause
-  exit /b 1
-)
+REM Menjalankan aplikasi
+python app_gradio.py
 
-echo Menjalankan Notulen Rapat...
-"%PYTHON_EXE%" app_gradio.py
+echo.
 pause

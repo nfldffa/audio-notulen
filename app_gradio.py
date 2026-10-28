@@ -7,26 +7,21 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from functools import lru_cache
+import gc
 
 import gradio as gr
 import torch
 import requests
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-
-# KONFIGURASI
-
+# KONFIGURASI Latar Belakang (Tidak ditampilkan ke UI)
 WHISPER_MODEL_ID = "openai/whisper-large-v3-turbo"
 DEFAULT_OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_URL = "http://127.0.0.1:11434"
 
-
 # PEMERIKSAAN KOMPONEN LOKAL
-
 def find_ffmpeg() -> str | None:
     return shutil.which("ffmpeg")
-
 
 def find_ollama() -> str | None:
     found = shutil.which("ollama")
@@ -41,12 +36,10 @@ def find_ollama() -> str | None:
             return str(c)
     return None
 
-
 def get_ollama_models() -> list[str]:
     resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
     resp.raise_for_status()
     return [item.get("name", "") for item in resp.json().get("models", [])]
-
 
 def model_is_installed(requested: str, installed: list[str]) -> bool:
     req = requested.strip()
@@ -55,24 +48,8 @@ def model_is_installed(requested: str, installed: list[str]) -> bool:
             return True
     return False
 
-
-def system_status() -> str:
-    lines = []
-    lines.append(f"FFmpeg: {'✅ Siap' if find_ffmpeg() else '❌ Tidak ditemukan'}")
-    lines.append(f"GPU/CUDA: {'✅ ' + torch.cuda.get_device_name(0) if torch.cuda.is_available() else '⚠️ CPU Mode'}")
-    lines.append(f"Ollama: {'✅ Siap' if find_ollama() else '❌ Tidak terdeteksi'}")
-    try:
-        models = get_ollama_models()
-        lines.append(f"Model: {', '.join(models) if models else 'Kosong'}")
-    except Exception:
-        lines.append("Model: Gagal terhubung ke Ollama")
-    return "\n".join(lines)
-
-
 # WHISPER ENGINE
-
 _asr_cache: dict = {}
-
 
 def load_whisper(use_gpu: bool):
     key = "gpu" if use_gpu else "cpu"
@@ -81,9 +58,6 @@ def load_whisper(use_gpu: bool):
 
     device = "cuda:0" if use_gpu else "cpu"
     dtype = torch.float16 if use_gpu else torch.float32
-
-    if use_gpu and not torch.cuda.is_available():
-        raise RuntimeError("CUDA tidak tersedia. Silakan matikan opsi GPU.")
 
     if use_gpu:
         torch.cuda.empty_cache()
@@ -116,9 +90,7 @@ def load_whisper(use_gpu: bool):
     _asr_cache[key] = asr
     return asr
 
-
 # AUDIO CONVERSION & TRANSCRIPTION
-
 def convert_to_wav(input_path: str, output_path: str):
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
@@ -137,11 +109,10 @@ def convert_to_wav(input_path: str, output_path: str):
     )
 
     if result.returncode != 0:
-        raise RuntimeError("Gagal memproses audio:\n" + result.stderr[-2000:])
+        raise RuntimeError("Gagal memproses media:\n" + result.stderr[-2000:])
 
     if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-        raise RuntimeError("File audio hasil konversi kosong.")
-
+        raise RuntimeError("File hasil konversi kosong.")
 
 def transcribe_audio(asr, wav_path: str, with_timestamps: bool) -> tuple[str, str]:
     with torch.inference_mode():
@@ -177,16 +148,13 @@ def transcribe_audio(asr, wav_path: str, with_timestamps: bool) -> tuple[str, st
 
     return transcript, timestamped
 
-
 def _fmt_ts(seconds) -> str:
     if seconds is None:
         return "--:--:--"
     s = max(0, int(seconds))
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
-
 # OLLAMA STREAMING & PROMPT
-
 def ollama_stream_generator(model: str, prompt: str):
     response = requests.post(
         f"{OLLAMA_URL}/api/generate",
@@ -196,8 +164,8 @@ def ollama_stream_generator(model: str, prompt: str):
             "stream": True,
             "options": {
                 "temperature": 0.1,
-                "num_ctx": 8192,
-                "num_predict": 4096,
+                "num_ctx": 2048,
+                "num_predict": 1024,
                 "top_p": 0.9,
                 "repeat_penalty": 1.1,
             },
@@ -226,7 +194,6 @@ def ollama_stream_generator(model: str, prompt: str):
 
     if not collected:
         raise RuntimeError("Ollama tidak mengembalikan respons.")
-
 
 def make_prompt(transcript: str, title: str, date: str, context: str) -> str:
     ctx = context.strip() or "Tidak ada konteks tambahan."
@@ -268,9 +235,7 @@ TRANSKRIPSI:
 {transcript}
 \"\"\""""
 
-
 # EXPORT DOCX
-
 def export_docx(markdown_text: str, title: str) -> bytes:
     from docx import Document
     from docx.shared import Inches, Pt
@@ -310,7 +275,6 @@ def export_docx(markdown_text: str, title: str) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
-
 def export_word_file(notulen_text: str, meeting_title: str) -> str | None:
     if not notulen_text or not notulen_text.strip():
         raise gr.Error("Belum ada notulen untuk diekspor.")
@@ -322,50 +286,47 @@ def export_word_file(notulen_text: str, meeting_title: str) -> str | None:
     except ImportError:
         raise gr.Error("python-docx belum terinstal. Jalankan: pip install python-docx")
 
-
 # PIPELINE UTAMA
-
 def run_pipeline(
-    audio_path: str | None,
-    use_gpu: bool,
-    llm_model: str,
+    media_path: str | None,
     meeting_title: str,
     meeting_date: str,
     extra_context: str,
     with_timestamps: bool,
 ):
-    if not audio_path:
-        yield "❌ Masukkan rekaman atau file audio terlebih dahulu.", "", "", None, None
+    if not media_path:
+        yield "Masukkan berkas media terlebih dahulu.", "", "", None, None
         return
 
     if not find_ffmpeg():
-        yield "❌ FFmpeg tidak ditemukan di sistem.", "", "", None, None
+        yield "Sistem membutuhkan FFmpeg. Pastikan FFmpeg sudah terinstal.", "", "", None, None
         return
 
     if not find_ollama():
-        yield "❌ Ollama tidak ditemukan.", "", "", None, None
+        yield "Sistem membutuhkan Ollama. Pastikan Ollama sudah terinstal dan berjalan.", "", "", None, None
         return
 
     try:
         installed = get_ollama_models()
     except Exception:
-        yield "❌ Layanan Ollama tidak aktif.", "", "", None, None
+        yield "Layanan Ollama tidak aktif.", "", "", None, None
         return
 
-    if not model_is_installed(llm_model.strip(), installed):
-        yield f"❌ Model Ollama '{llm_model}' belum terinstal.", "", "", None, None
+    if not model_is_installed(DEFAULT_OLLAMA_MODEL, installed):
+        yield f"Model Ollama '{DEFAULT_OLLAMA_MODEL}' belum terinstal.", "", "", None, None
         return
 
+    use_gpu = torch.cuda.is_available()
     input_path = None
     wav_path = None
     started = time.time()
 
     try:
-        yield "⏳ Menyiapkan audio...", "", "", None, None
-        suffix = Path(audio_path).suffix.lower() or ".webm"
+        yield "Menyiapkan berkas media...", "", "", None, None
+        suffix = Path(media_path).suffix.lower() or ".webm"
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(Path(audio_path).read_bytes())
+            tmp.write(Path(media_path).read_bytes())
             input_path = tmp.name
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
@@ -373,35 +334,42 @@ def run_pipeline(
 
         convert_to_wav(input_path, wav_path)
 
-        yield "⏳ Mentranskripsi rekaman audio...", "", "", None, None
+        yield "Mentranskripsi rekaman...", "", "", None, None
         asr = load_whisper(use_gpu)
         transcript, timestamped = transcribe_audio(asr, wav_path, with_timestamps)
 
         if not transcript:
-            yield "⚠️ Suara tidak terdeteksi pada audio.", "", "", None, None
+            yield "Suara tidak terdeteksi pada media yang diberikan.", "", "", None, None
             return
 
-        yield "⏳ Menyusun notulen rapat...", timestamped, "", None, None
+        yield "Menyusun notulen rapat...", timestamped, "", None, None
+
+        # Hapus Whisper dari memori agar Ollama bisa masuk
+        global _asr_cache
+        _asr_cache.clear()
+        gc.collect()
+        if use_gpu:
+            torch.cuda.empty_cache()
 
         prompt = make_prompt(transcript, meeting_title, meeting_date, extra_context)
         minutes = ""
-        for partial in ollama_stream_generator(llm_model.strip(), prompt):
+        for partial in ollama_stream_generator(DEFAULT_OLLAMA_MODEL, prompt):
             minutes = partial
-            yield "⏳ Menyusun notulen rapat...", timestamped, minutes, None, None
+            yield "Menyusun notulen rapat...", timestamped, minutes, None, None
 
         elapsed = round(time.time() - started, 1)
 
-        source_base = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(audio_path).stem).strip("_") or "rapat"
+        source_base = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(media_path).stem).strip("_") or "rapat"
         notulen_path = tempfile.mktemp(suffix=f"_Notulen_{source_base}.md")
         Path(notulen_path).write_text(minutes, encoding="utf-8")
 
         transkrip_path = tempfile.mktemp(suffix=f"_Transkripsi_{source_base}.txt")
         Path(transkrip_path).write_text(timestamped, encoding="utf-8")
 
-        yield f"✅ Selesai dalam {elapsed} detik.", timestamped, minutes, notulen_path, transkrip_path
+        yield f"Proses selesai dalam {elapsed} detik.", timestamped, minutes, notulen_path, transkrip_path
 
     except Exception as exc:
-        yield f"❌ Terjadi kesalahan: {str(exc)}", "", "", None, None
+        yield f"Terjadi kesalahan: {str(exc)}", "", "", None, None
 
     finally:
         for p in (input_path, wav_path):
@@ -411,86 +379,70 @@ def run_pipeline(
                 except OSError:
                     pass
 
-
-# ANTARMUKA GRADIO (MINIMALIS & SIMPEL)
-
+# ANTARMUKA GRADIO
 custom_css = """
-.gradio-container { max-width: 1000px !important; margin: auto !important; }
-#status-text { font-size: 0.95rem; font-weight: 500; }
+.gradio-container { max-width: 900px !important; margin: auto !important; }
+#status-text { font-size: 0.95rem; font-weight: 500; color: #333; }
 """
 
-with gr.Blocks(title="Notulen Rapat Otomatis", css=custom_css) as demo:
+with gr.Blocks(title="Notulen Rapat Otomatis") as demo:
     gr.Markdown(
         """
-        # 🎙️ Notulen Rapat Otomatis
-        Unggah audio atau rekam suara untuk membuat notulen rapat secara otomatis.
+        # Sistem Notulen Rapat Otomatis
+        Unggah berkas audio atau video untuk ditranskripsikan dan diubah menjadi notulen rapat secara otomatis.
         """
     )
 
     with gr.Row():
-        # Kolom Kiri: Input Sederhana
         with gr.Column(scale=1):
-            audio_input = gr.Audio(
-                label="Audio / Rekaman",
-                sources=["upload", "microphone"],
-                type="filepath",
-                format="wav",
+            media_input = gr.File(
+                label="Unggah Audio / Video",
+                file_types=["audio", "video"],
+                type="filepath"
             )
 
-            btn_process = gr.Button("⚡ Buat Notulen", variant="primary", size="lg")
+            meeting_title = gr.Textbox(label="Judul Rapat", placeholder="Contoh: Rapat Mingguan Proyek")
+            meeting_date = gr.Textbox(label="Tanggal", placeholder="Contoh: 27 Oktober 2026")
+            extra_context = gr.Textbox(
+                label="Konteks Tambahan",
+                placeholder="Nama peserta, topik bahasan, atau istilah spesifik...",
+                lines=2,
+            )
+            
+            with_timestamps = gr.Checkbox(label="Sertakan penanda waktu (timestamp) di transkrip", value=True)
 
-            # Detail tambahan disembunyikan dalam Accordion agar rapi
-            with gr.Accordion("📝 Informasi Rapat (Opsional)", open=False):
-                meeting_title = gr.Textbox(label="Judul Rapat", placeholder="Contoh: Rapat Mingguan Proyek")
-                meeting_date = gr.Textbox(label="Tanggal", placeholder="Contoh: 27 Oktober 2026")
-                extra_context = gr.Textbox(
-                    label="Catatan / Peserta",
-                    placeholder="Nama peserta, topik bahasan, atau istilah penting...",
-                    lines=2,
-                )
+            btn_process = gr.Button("Buat Notulen", variant="primary")
 
-            with gr.Accordion("⚙️ Pengaturan Lanjutan", open=False):
-                use_gpu = gr.Checkbox(label="Gunakan GPU (NVIDIA CUDA)", value=torch.cuda.is_available())
-                llm_model = gr.Textbox(label="Model Ollama", value=DEFAULT_OLLAMA_MODEL)
-                with_timestamps = gr.Checkbox(label="Sertakan timestamp di transkrip", value=True)
-                sys_status = gr.Textbox(value=system_status, label="Status Sistem", lines=4, interactive=False)
-
-        # Kolom Kanan: Hasil & Tab
         with gr.Column(scale=2):
-            status_out = gr.Markdown("Siap memproses audio.", elem_id="status-text")
+            status_out = gr.Markdown("Sistem siap. Silakan unggah berkas.", elem_id="status-text")
 
             with gr.Tabs():
-                with gr.TabItem("📄 Notulen Rapat"):
-                    notulen_out = gr.Markdown("*Hasil notulen akan muncul di sini...*")
+                with gr.TabItem("Notulen Rapat"):
+                    notulen_out = gr.Markdown("*Hasil notulen akan ditampilkan di sini.*")
 
-                with gr.TabItem("📝 Transkrip Lengkap"):
+                with gr.TabItem("Transkrip Lengkap"):
                     transcript_out = gr.Textbox(
                         label="Teks Transkripsi",
-                        lines=12,
-                        max_lines=20,
+                        lines=15,
+                        max_lines=25,
                         interactive=False,
-                        placeholder="Transkripsi audio akan ditampilkan di sini...",
+                        placeholder="Transkripsi media akan ditampilkan di sini.",
                     )
 
-            # Bagian Unduhan yang Ringkas
-            with gr.Accordion("💾 Unduh Berkas", open=True):
-                with gr.Row():
-                    btn_export_word = gr.Button("📄 Unduh Word (.docx)", size="sm")
-                    file_word = gr.File(label="Berkas Word", interactive=False)
-                with gr.Row():
-                    file_notulen = gr.File(label="Notulen (.md)", interactive=False)
-                    file_transkripsi = gr.File(label="Transkrip (.txt)", interactive=False)
+            with gr.Row():
+                btn_export_word = gr.Button("Unduh Word (.docx)", size="sm")
+                file_word = gr.File(label="Berkas Word", interactive=False)
+            with gr.Row():
+                file_notulen = gr.File(label="Berkas Notulen (.md)", interactive=False)
+                file_transkripsi = gr.File(label="Berkas Transkrip (.txt)", interactive=False)
 
-    # State untuk menyimpan notulen teks murni
     notulen_state = gr.State("")
 
     # Event Handlers
     btn_process.click(
         fn=run_pipeline,
         inputs=[
-            audio_input,
-            use_gpu,
-            llm_model,
+            media_input,
             meeting_title,
             meeting_date,
             extra_context,
@@ -513,7 +465,6 @@ with gr.Blocks(title="Notulen Rapat Otomatis", css=custom_css) as demo:
         outputs=[file_word],
     )
 
-
 if __name__ == "__main__":
     demo.launch(
         server_name="127.0.0.1",
@@ -521,4 +472,5 @@ if __name__ == "__main__":
         inbrowser=True,
         show_error=True,
         theme=gr.themes.Soft(),
+        css=custom_css
     )
