@@ -245,7 +245,7 @@ def export_docx(markdown_text: str, title: str) -> bytes:
     sec = doc.sections[0]
     sec.top_margin = sec.bottom_margin = Inches(0.7)
     sec.left_margin = sec.right_margin = Inches(0.8)
-    doc.core_properties.title = title or "Notulen Rapat"
+    doc.core_properties.title = title or "Notulen"
     normal = doc.styles["Normal"]
     normal.font.name = "Aptos"
     normal.font.size = Pt(10)
@@ -346,7 +346,7 @@ def export_word_file(notulen_text: str, meeting_title: str) -> str | None:
         docx_bytes = export_docx(notulen_text, meeting_title)
         safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", meeting_title or "").strip("_")
         if not safe_title:
-            safe_title = "Notulen_Rapat"
+            safe_title = "Notulen"
             
         path = tempfile.mktemp(suffix=".docx", prefix=f"{safe_title}_")
         Path(path).write_bytes(docx_bytes)
@@ -414,7 +414,7 @@ def run_pipeline(
             yield "Suara tidak terdeteksi pada media yang diberikan.", "", "", None, None
             return
 
-        yield "Menyusun notulen rapat...", timestamped, "", None, None
+        yield "Menyusun notulen...", timestamped, "", None, None
 
         # Hapus Whisper dari memori agar Ollama bisa masuk
         global _asr_cache
@@ -427,7 +427,7 @@ def run_pipeline(
         minutes = ""
         for partial in ollama_stream_generator(DEFAULT_OLLAMA_MODEL, prompt):
             minutes = partial
-            yield "Menyusun notulen rapat...", timestamped, minutes, None, None
+            yield "Menyusun notulen...", timestamped, minutes, None, None
 
         elapsed = round(time.time() - started, 1)
 
@@ -496,7 +496,7 @@ function() {
 """
 
 # 3. Struktur Layout Block
-with gr.Blocks(title="Notulen Rapat Otomatis", theme=modern_theme, css=custom_css, js=force_light_js) as demo:
+with gr.Blocks(title="Notulen Otomatis", theme=modern_theme, css=custom_css, js=force_light_js) as demo:
     
     # Tombol Ganti Tema
     theme_toggle = gr.Button("🌓 Terang / Gelap", size="sm", elem_classes="theme-toggle-btn")
@@ -522,11 +522,11 @@ with gr.Blocks(title="Notulen Rapat Otomatis", theme=modern_theme, css=custom_cs
             
             # Kartu 2: Formulir Informasi (Dimampatkan menjadi 2 baris saja)
             with gr.Column(elem_classes="modern-card"):
-                gr.Markdown("### 📝 Informasi Rapat")
+                gr.Markdown("### 📝 Informasi")
                 
                 # Baris pertama formulir
                 with gr.Row():
-                    meeting_title = gr.Textbox(label="Judul Rapat", placeholder="Contoh: Evaluasi Q3", scale=1)
+                    meeting_title = gr.Textbox(label="Judul", placeholder="Contoh: Evaluasi Q3", scale=1)
                     meeting_date = gr.Textbox(label="Tanggal", placeholder="Contoh: 28 Okt 2026", scale=1)
                 
                 # Baris kedua formulir (Konteks & Checkbox kini bersebelahan)
@@ -549,8 +549,8 @@ with gr.Blocks(title="Notulen Rapat Otomatis", theme=modern_theme, css=custom_cs
 
             with gr.Column(elem_classes="modern-card"):
                 with gr.Tabs():
-                    with gr.TabItem("Notulen Rapat"):
-                        notulen_out = gr.Markdown("*Hasil notulen yang telah disusun AI akan ditampilkan di sini.*")
+                    with gr.TabItem("Notulen"):
+                        notulen_out = gr.Markdown("*Hasil notulen yang telah disusun akan ditampilkan di sini.*")
 
                     with gr.TabItem("Transkrip Mentah"):
                         transcript_out = gr.Textbox(
