@@ -496,7 +496,7 @@ function() {
 """
 
 # 3. Struktur Layout Block
-with gr.Blocks(title="Notulen Otomatis", theme=modern_theme, css=custom_css, js=force_light_js) as demo:
+with gr.Blocks(title="Notulen Otomatis") as demo:
     
     # Tombol Ganti Tema
     theme_toggle = gr.Button("🌓 Terang / Gelap", size="sm", elem_classes="theme-toggle-btn")
@@ -616,4 +616,7 @@ if __name__ == "__main__":
         server_port=7860,
         inbrowser=True,
         show_error=True,
+        theme=modern_theme,
+        css=custom_css,
+        js=force_light_js,
     )
