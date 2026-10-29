@@ -613,7 +613,7 @@ with gr.Blocks(title="Notulen Otomatis") as demo:
 if __name__ == "__main__":
     demo.launch(
         server_name="127.0.0.1",
-        server_port=7860,
+        server_port=80,
         inbrowser=True,
         show_error=True,
         theme=modern_theme,
