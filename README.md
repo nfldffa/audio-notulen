@@ -1,6 +1,6 @@
 # Notulen Rapat Lokal Otomatis
 
-Aplikasi web berbasis **Gradio** untuk transkripsi audio/video rapat berbahasa Indonesia dan penyusunan notulen rapat formal secara otomatis. Berjalan **100% lokal di komputer Anda**, gratis tanpa langganan API berbayar, serta menjaga privasi dan kerahasiaan data rapat secara penuh.
+Aplikasi web berbasis **Gradio** untuk transkripsi audio/video rapat berbahasa Indonesia dan penyusunan notulen rapat formal secara otomatis. Berjalan **100% lokal di komputer**, tanpa langganan API berbayar, serta menjaga privasi dan kerahasiaan data rapat secara penuh.
 
 ## Teknologi yang Digunakan
 
@@ -8,7 +8,7 @@ Aplikasi web berbasis **Gradio** untuk transkripsi audio/video rapat berbahasa I
 
 * **Pemrosesan Media:** FFmpeg (Mendukung ekstraksi otomatis dari format Video ke Audio)
 
-* **Penyusun Notulen (LLM):** Qwen 2.5 (7B / 3B) via Ollama lokal
+* **Penyusun Notulen (LLM):** Qwen 2.5 (32B) via Ollama lokal
 
 * **Antarmuka Web:** Gradio 6.0+
 
@@ -99,10 +99,10 @@ pip install -r requirements.txt
 
 1. Pastikan aplikasi **Ollama** sudah terpasang dan berjalan di latar belakang (cek ikon di taskbar).
 
-2. Unduh model **Qwen 2.5 7B** (rekomendasi untuk akurasi terbaik):
+2. Unduh model **Qwen 2.5 32B** (rekomendasi untuk akurasi terbaik):
 
    ```
-   ollama pull qwen2.5:7b
+   ollama pull qwen2.5:32b
    
    ```
 
@@ -113,7 +113,7 @@ pip install -r requirements.txt
    
    ```
 
-   *(Catatan: Jika menggunakan model selain `qwen2.5:7b`, sesuaikan variabel `DEFAULT_OLLAMA_MODEL` di dalam file `app_gradio.py`).*
+   *(Catatan: Jika menggunakan model selain `qwen2.5:32b`, sesuaikan variabel `DEFAULT_OLLAMA_MODEL` di dalam file `app_gradio.py`).*
 
 ## Menjalankan Aplikasi
 
