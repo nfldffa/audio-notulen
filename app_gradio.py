@@ -18,6 +18,8 @@ from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 WHISPER_MODEL_ID = "openai/whisper-large-v3-turbo"
 DEFAULT_OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_URL = "http://127.0.0.1:11434"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 # PEMERIKSAAN KOMPONEN LOKAL
 def find_ffmpeg() -> str | None:
@@ -62,13 +64,14 @@ def load_whisper(use_gpu: bool):
     if use_gpu:
         torch.cuda.empty_cache()
 
-    processor = AutoProcessor.from_pretrained(WHISPER_MODEL_ID)
+    processor = AutoProcessor.from_pretrained(WHISPER_MODEL_ID, local_files_only=True)
     model = AutoModelForSpeechSeq2Seq.from_pretrained(
         WHISPER_MODEL_ID,
         torch_dtype=dtype,
         low_cpu_mem_usage=True,
         use_safetensors=True,
         attn_implementation="sdpa",
+        local_files_only=True,
     )
     model.to(device)
     model.eval()
