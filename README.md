@@ -94,11 +94,11 @@ Aplikasi akan otomatis berjalan pada server lokal di port 80:
 
 ## Cara Penggunaan
 
-1. **01. Unggah Berkas Media:** Seret dan lepas berkas audio/video (`.wav`, `.mp3`, `.m4a`, `.mp4`, `.mkv`, `.webm`, dll.).
-2. **02. Metadata Rapat:** Masukkan **Judul Agenda Rapat**, **Tanggal Pelaksanaan**, serta **Konteks & Glosarium Khusus** (akronim, nama narasumber, istilah teknis) untuk meningkatkan akurasi transkripsi. Anda juga dapat memilih opsi penanda waktu (_timestamp_).
+1. **Unggah Berkas Media:** Seret dan lepas berkas audio/video (`.wav`, `.mp3`, `.m4a`, `.mp4`, `.mkv`, `.webm`, dll.).
+2. **Metadata Rapat:** Masukkan **Judul Agenda Rapat**, **Tanggal Pelaksanaan**, serta **Konteks & Glosarium Khusus** (akronim, nama narasumber, istilah teknis) untuk meningkatkan akurasi transkripsi. Anda juga dapat memilih opsi penanda waktu (_timestamp_).
 3. **Mulai Pemrosesan:** Klik tombol **"Mulai Pemrosesan Data"**.
-4. **03 & 04. Pelacakan & Pratinjau:** Pantau status progres secara real-time. Setelah selesai, tinjau hasil notulen pada tab **"Dokumen Notulensi Resmi"** atau transkrip pada tab **"Log Transkripsi Mentah"**.
-5. **05. Unduh Berkas:** Unduh hasil akhir dalam format **Word (.docx)**, **Markdown (.md)**, atau **Transkrip (.txt)**.
+4. **Pelacakan & Pratinjau:** Pantau status progres secara real-time. Setelah selesai, tinjau hasil notulen pada tab **"Dokumen Notulensi Resmi"** atau transkrip pada tab **"Log Transkripsi Mentah"**.
+5. **Unduh Berkas:** Unduh hasil akhir dalam format **Word (.docx)**, **Markdown (.md)**, atau **Transkrip (.txt)**.
 
 ---
 
