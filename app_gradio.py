@@ -397,7 +397,7 @@ body, html {
     max-width: 1440px !important; 
     width: 100% !important; 
     margin: 0 auto !important; 
-    padding: 24px 28px !important; 
+    padding: 0px 28px 24px 28px !important; 
     box-sizing: border-box !important; 
 }
 
@@ -421,7 +421,7 @@ body, html {
 }
 
 .app-logo { 
-    height: 52px !important; 
+    height: 74px !important; 
     width: auto !important; 
     object-fit: contain; 
 }
@@ -430,8 +430,8 @@ body, html {
     background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); 
     color: white; 
     border-radius: 12px; 
-    width: 52px; 
-    height: 52px; 
+    width: 74px; 
+    height: 74px; 
     display: flex; 
     justify-content: center; 
     align-items: center; 
@@ -739,8 +739,7 @@ input[type="text"]:focus, textarea:focus {
 }
 """
 
-with gr.Blocks(title="Sistem Notulensi Terpadu | Bakom RI") as demo:
-    
+with gr.Blocks(title="Sistem Notulensi Terpadu | Bakom RI") as demo:    
     # Header Navbar Modern dengan Integrasi Tombol Mode Gelap/Terang JS Bawaan Gradio
     gr.HTML(f"""
     <div class="app-header">
@@ -814,5 +813,6 @@ if __name__ == "__main__":
         server_port=80,
         inbrowser=True,
         theme=modern_theme,
-        css=modern_css
+        css=modern_css,
+        head=f'<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{b64_logo}">'
     )
