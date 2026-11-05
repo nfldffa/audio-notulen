@@ -508,12 +508,20 @@ body, html {
     margin-left: 12px;
 }
 
-/* Form Elements Styling */
-label span, .block label {
-    background: transparent !important;
+/* Form Elements Styling & Margin Tightening */
+.custom-input-label {
     font-size: 13px !important;
     font-weight: 700 !important;
-    margin-bottom: 6px !important;
+    color: var(--body-text-color, #1e293b) !important;
+    margin-bottom: 2px !important;
+    margin-top: 14px !important;
+    display: block !important;
+}
+
+/* Mengurangi padding/margin wrapper bawaan Gradio di bawah input DateTime & Textbox */
+#meeting-date-picker, div:has(> #meeting-date-picker), 
+.gr-box, .block {
+    margin-bottom: 0px !important;
 }
 
 input[type="text"], textarea, .gr-input, .gr-box {
@@ -543,6 +551,12 @@ input[type="text"]:focus, textarea:focus {
     background: var(--primary-50, rgba(99, 102, 241, 0.02)) !important;
 }
 
+/* FIX SKALA KALENDER: Bebas dari potongan & dipusatkan */
+.picker-container, .flatpickr-calendar {
+    transform: scale(0.85) !important;
+    transform-origin: top left !important;
+}
+
 /* Action CTA Button */
 .cta-process-btn {
     background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
@@ -555,7 +569,7 @@ input[type="text"]:focus, textarea:focus {
     width: 100% !important;
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
     transition: all 0.2s ease !important;
-    margin-top: 12px !important;
+    margin-top: 16px !important;
 }
 
 .cta-process-btn:hover {
@@ -750,14 +764,22 @@ with gr.Blocks(title="Sistem Notulensi Terpadu | Bakom RI") as demo:
         # Kolom Kiri: Panel Input & Konfigurasi (Bento Grid Card)
         with gr.Column(scale=4, elem_classes="panel-card"):
             gr.HTML("<div class='section-header'>01. Unggah Berkas Media</div>")
+            
+            gr.HTML("<div class='custom-input-label' style='margin-top:0;'>Sumber Rekaman (Audio / Video)</div>")
             media_input = gr.File(show_label=False, file_types=["audio", "video"], type="filepath", elem_id="file-upload-dropzone")
             
             gr.HTML("<div class='section-header' style='margin-top: 24px;'>02. Metadata Rapat</div>")
-            meeting_title = gr.Textbox(label="Judul Agenda Rapat", placeholder="Contoh: Rapat Koordinasi Nasional...", lines=1)
-            meeting_date = gr.DateTime(label="Tanggal Pelaksanaan", include_time=False)
+            
+            gr.HTML("<div class='custom-input-label'>Judul Agenda Rapat</div>")
+            meeting_title = gr.Textbox(show_label=False, placeholder="Contoh: Rapat Koordinasi Nasional...", lines=1)
+            
+            gr.HTML("<div class='custom-input-label'>Tanggal Pelaksanaan</div>")
+            meeting_date = gr.DateTime(show_label=False, include_time=False, elem_id="meeting-date-picker")
             
             with gr.Accordion("Pengaturan Lanjutan & Konteks", open=False):
-                extra_context = gr.Textbox(label="Konteks & Glosarium Khusus", placeholder="Masukkan singkatan, istilah teknis, atau nama narasumber...", lines=3)
+                gr.HTML("<div class='custom-input-label'>Konteks & Glosarium Khusus</div>")
+                extra_context = gr.Textbox(show_label=False, placeholder="Masukkan singkatan, istilah teknis, atau nama narasumber...", lines=3)
+                
                 with_timestamps = gr.Checkbox(label="Sertakan Penanda Waktu (Timestamp)", value=True)
             
             btn_process = gr.Button("Mulai Pemrosesan Data", elem_classes="cta-process-btn")
