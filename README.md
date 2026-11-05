@@ -8,7 +8,7 @@ Aplikasi web berbasis **Gradio 6.0+** dengan desain sistem modern (Bento Grid) d
 
 1. **Antarmuka Modern & Responsif:** Desain Bento Grid dengan tombol sakelar Mode Gelap / Terang (Dark/Light Mode).
 2. **Ekstraksi & Transkripsi Otomatis (STT):** Menggunakan **OpenAI Faster Whisper (Large-v3)** dengan deteksi bahasa Indonesia, filter VAD, dan dukungan GPU CUDA (opsional) atau CPU.
-3. **Pemrosesan Teks Panjang Cerdas (LLM):** Menggunakan **Qwen 2.5 (32B)** via Ollama lokal. Otomatis melakukan pemisahan _chunking_ (>3500 kata) dan ringkasan bertahap untuk transkrip panjang.
+3. **Pemrosesan Teks Panjang Cerdas (LLM):** Menggunakan **Qwen 2.5 (32B)** via Ollama lokal. Otomatis melakukan pemisahan _chunking_ (>2500 kata) dan ringkasan bertahap untuk transkrip panjang.
 4. **Generator Notulen Berstandar Eksekutif:** Menghasilkan dokumen dengan struktur baku:
    - Informasi Rapat (Judul, Tanggal, Referensi/Konteks)
    - Ringkasan Eksekutif
@@ -88,7 +88,7 @@ python app_gradio.py
 ```
 
 Aplikasi akan otomatis berjalan pada server lokal di port 80:
-👉 **`http://127.0.0.1`** (atau `http://localhost`)
+-> **`http://127.0.0.1`** (atau `http://localhost`)
 
 ---
 
